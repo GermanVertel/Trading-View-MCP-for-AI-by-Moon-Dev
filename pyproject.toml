@@ -10,7 +10,7 @@ authors = [{ name = "Moon Dev" }]
 requires-python = ">=3.10"
 readme = "README.md"
 dependencies = [
-    "mcp>=1.0.0",
+    "mcp>=1.0.0,<2.0.0",
     "websocket-client>=1.7.0",
     "requests>=2.31.0",
     "pydantic>=2.0",

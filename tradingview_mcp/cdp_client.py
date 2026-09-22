@@ -182,6 +182,14 @@ class CDPClient:
 
 # --- tab discovery -----------------------------------------------------------
 
+
+def _rewrite_ws_url(ws_url: str, port: int) -> str:
+    """Moon Dev: Chrome returns ws://localhost/devtools/... (no port).
+    Rewrite host:port so the WS goes through our local CDP proxy."""
+    import re as _re
+    return _re.sub(r"^ws://[^/]+", f"ws://127.0.0.1:{port}", ws_url)
+
+
 def list_tabs(port: int = CDP_PORT, timeout: float = 3.0) -> list[CDPTab]:
     r = requests.get(f"http://127.0.0.1:{port}/json", timeout=timeout)
     r.raise_for_status()
@@ -196,6 +204,7 @@ def list_tabs(port: int = CDP_PORT, timeout: float = 3.0) -> list[CDPTab]:
         ws_url = entry.get("webSocketDebuggerUrl", "")
         if not ws_url:
             continue
+        ws_url = _rewrite_ws_url(ws_url, port)
         out.append(CDPTab(
             id=entry.get("id", ""),
             title=entry.get("title", ""),

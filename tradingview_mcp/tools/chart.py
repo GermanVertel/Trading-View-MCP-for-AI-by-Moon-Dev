@@ -18,27 +18,33 @@ from ._helpers import focus_chart, press_escape, with_cdp
 
 
 def _current_chart_state(cdp: CDPClient) -> dict[str, str]:
-    """Scrape symbol + interval from the page title and URL. TV encodes both."""
+    """Scrape symbol + interval. Priority: DOM header toolbar -> title -> URL query."""
     js = """
     (() => {
-      const title = document.title || '';
-      const href = location.href || '';
-      return { title: title, href: href };
+      const q = s => { const e = document.querySelector(s); return e ? (e.textContent || e.value || '').trim() : ''; };
+      const sym = q('#header-toolbar-symbol-search');
+      const btns = Array.from(document.querySelectorAll('#header-toolbar-intervals button'));
+      let tf = '';
+      const active = btns.find(b => /isActive|active|selected/i.test(b.className) || b.getAttribute('aria-pressed') === 'true');
+      if (active) tf = (active.textContent || '').trim();
+      else if (btns.length === 1) tf = (btns[0].textContent || '').trim();
+      return { sym: sym, tf: tf, title: document.title || '', href: location.href || '' };
     })()
     """
     data = cdp.eval_js(js) or {}
     title = str(data.get("title", ""))
     href = str(data.get("href", ""))
-    symbol, interval = "", ""
-    # "NVDA, 5 — TradingView" or "BTCUSD · 1H Chart" — many variants. Best-effort.
-    if " — " in title:
+    symbol = str(data.get("sym", "")).strip()
+    interval = str(data.get("tf", "")).strip()
+    # Fallback 1: parse title "NVDA, 5 — TradingView" or "BTCUSD · 1H Chart".
+    if not symbol and " — " in title:
         head = title.split(" — ", 1)[0]
         parts = [p.strip() for p in head.replace("·", ",").split(",")]
         if parts:
             symbol = parts[0]
-            if len(parts) >= 2:
+            if len(parts) >= 2 and not interval:
                 interval = parts[1]
-    # Fallback: parse ?symbol=&interval= from URL.
+    # Fallback 2: parse ?symbol=&interval= from URL.
     from urllib.parse import urlparse, parse_qs
     qs = parse_qs(urlparse(href).query)
     symbol = symbol or (qs.get("symbol", [""])[0])
